@@ -14,6 +14,12 @@
         .sidebar {
             transition: width 0.3s;
         }
+        .menu-item {
+            transition: all 0.2s;
+        }
+        .menu-item:hover {
+            transform: translateX(2px);
+        }
     </style>
 </head>
 <body class="bg-gray-50">
@@ -29,8 +35,8 @@
                 <div class="flex items-center space-x-4">
                     <span class="text-gray-700">Welcome, {{ current_user.username }}</span>
                     <span class="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">{{ current_user.role|title }}</span>
-                    <a href="{{ url_for('logout') }}" class="text-gray-600 hover:text-blue-600">
-                        <i class="fas fa-sign-out-alt"></i>
+                    <a href="{{ url_for('logout') }}" class="text-gray-600 hover:text-blue-600 transition duration-200">
+                        <i class="fas fa-sign-out-alt"></i> Logout
                     </a>
                 </div>
             </div>
@@ -39,54 +45,124 @@
 
     <div class="flex">
         <!-- Sidebar -->
-        <div class="sidebar bg-white w-16 hover:w-64 h-screen shadow-lg overflow-hidden">
+        <div class="sidebar bg-white w-16 hover:w-64 h-screen shadow-lg overflow-hidden border-r border-gray-200">
             <div class="p-4">
                 <ul class="space-y-2">
+                    <!-- Dashboard -->
                     <li>
-                        <a href="{{ url_for('dashboard') }}" class="flex items-center p-2 text-gray-700 hover:bg-blue-50 rounded-lg {% if request.endpoint == 'dashboard' %}bg-blue-50 text-blue-600{% endif %}">
-                            <i class="fas fa-chart-line w-8"></i>
-                            <span class="ml-4">Dashboard</span>
+                        <a href="{{ url_for('dashboard') }}" class="menu-item flex items-center p-2 text-gray-700 hover:bg-blue-50 rounded-lg {% if request.endpoint == 'dashboard' %}bg-blue-50 text-blue-600 border-r-2 border-blue-600{% endif %}">
+                            <i class="fas fa-chart-line w-8 text-center"></i>
+                            <span class="ml-4 font-medium">Dashboard</span>
                         </a>
                     </li>
                     
+                    <!-- Medicines -->
                     {% if current_user.role in ['admin', 'pharmacist'] %}
                     <li>
-                        <a href="{{ url_for('medicines') }}" class="flex items-center p-2 text-gray-700 hover:bg-blue-50 rounded-lg {% if request.endpoint.startswith('medicine') %}bg-blue-50 text-blue-600{% endif %}">
-                            <i class="fas fa-pills w-8"></i>
-                            <span class="ml-4">Medicines</span>
+                        <a href="{{ url_for('medicines') }}" class="menu-item flex items-center p-2 text-gray-700 hover:bg-blue-50 rounded-lg {% if request.endpoint.startswith('medicine') %}bg-blue-50 text-blue-600 border-r-2 border-blue-600{% endif %}">
+                            <i class="fas fa-pills w-8 text-center"></i>
+                            <span class="ml-4 font-medium">Medicines</span>
                         </a>
                     </li>
                     {% endif %}
                     
+                    <!-- Sales -->
                     <li>
-                        <a href="{{ url_for('sales') }}" class="flex items-center p-2 text-gray-700 hover:bg-blue-50 rounded-lg {% if request.endpoint.startswith('sale') %}bg-blue-50 text-blue-600{% endif %}">
-                            <i class="fas fa-shopping-cart w-8"></i>
-                            <span class="ml-4">Sales</span>
+                        <a href="{{ url_for('sales') }}" class="menu-item flex items-center p-2 text-gray-700 hover:bg-blue-50 rounded-lg {% if request.endpoint.startswith('sale') %}bg-blue-50 text-blue-600 border-r-2 border-blue-600{% endif %}">
+                            <i class="fas fa-shopping-cart w-8 text-center"></i>
+                            <span class="ml-4 font-medium">Sales</span>
                         </a>
                     </li>
                     
+                    <!-- Prescriptions -->
+                    {% if current_user.role in ['admin', 'pharmacist'] %}
+                    <li>
+                        <a href="{{ url_for('prescriptions') }}" class="menu-item flex items-center p-2 text-gray-700 hover:bg-blue-50 rounded-lg {% if request.endpoint.startswith('prescription') %}bg-blue-50 text-blue-600 border-r-2 border-blue-600{% endif %}">
+                            <i class="fas fa-file-medical w-8 text-center"></i>
+                            <span class="ml-4 font-medium">Prescriptions</span>
+                        </a>
+                    </li>
+                    {% endif %}
+                    
+                    <!-- Suppliers -->
                     {% if current_user.role == 'admin' %}
                     <li>
-                        <a href="{{ url_for('suppliers') }}" class="flex items-center p-2 text-gray-700 hover:bg-blue-50 rounded-lg">
-                            <i class="fas fa-truck w-8"></i>
-                            <span class="ml-4">Suppliers</span>
+                        <a href="{{ url_for('suppliers') }}" class="menu-item flex items-center p-2 text-gray-700 hover:bg-blue-50 rounded-lg {% if request.endpoint.startswith('supplier') %}bg-blue-50 text-blue-600 border-r-2 border-blue-600{% endif %}">
+                            <i class="fas fa-truck w-8 text-center"></i>
+                            <span class="ml-4 font-medium">Suppliers</span>
+                        </a>
+                    </li>
+                    {% endif %}
+
+                    <!-- Analytics (Admin Only) -->
+                    {% if current_user.role == 'admin' %}
+                    <li>
+                        <a href="#analytics" class="menu-item flex items-center p-2 text-gray-700 hover:bg-blue-50 rounded-lg">
+                            <i class="fas fa-chart-bar w-8 text-center"></i>
+                            <span class="ml-4 font-medium">Analytics</span>
+                        </a>
+                    </li>
+                    {% endif %}
+
+                    <!-- Reports -->
+                    {% if current_user.role in ['admin', 'pharmacist'] %}
+                    <li>
+                        <a href="#reports" class="menu-item flex items-center p-2 text-gray-700 hover:bg-blue-50 rounded-lg">
+                            <i class="fas fa-file-alt w-8 text-center"></i>
+                            <span class="ml-4 font-medium">Reports</span>
+                        </a>
+                    </li>
+                    {% endif %}
+
+                    <!-- Settings (Admin Only) -->
+                    {% if current_user.role == 'admin' %}
+                    <li class="pt-4 mt-4 border-t border-gray-200">
+                        <a href="#settings" class="menu-item flex items-center p-2 text-gray-700 hover:bg-blue-50 rounded-lg">
+                            <i class="fas fa-cog w-8 text-center"></i>
+                            <span class="ml-4 font-medium">Settings</span>
                         </a>
                     </li>
                     {% endif %}
                 </ul>
+
+                <!-- User Info in Sidebar -->
+                <div class="mt-8 pt-4 border-t border-gray-200 hidden hover:block">
+                    <div class="flex items-center p-2">
+                        <div class="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                            <i class="fas fa-user text-blue-600 text-sm"></i>
+                        </div>
+                        <div class="ml-4">
+                            <p class="text-sm font-medium text-gray-900">{{ current_user.username }}</p>
+                            <p class="text-xs text-gray-500">{{ current_user.role|title }}</p>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 
         <!-- Main Content -->
-        <main class="flex-1 p-6">
+        <main class="flex-1 p-6 overflow-auto">
             <!-- Flash Messages -->
             {% with messages = get_flashed_messages(with_categories=true) %}
                 {% if messages %}
-                    {% for category, message in messages %}
-                        <div class="mb-4 p-4 rounded-lg {% if category == 'success' %}bg-green-100 text-green-700{% else %}bg-red-100 text-red-700{% endif %}">
-                            {{ message }}
-                        </div>
-                    {% endfor %}
+                    <div class="mb-6 space-y-2">
+                        {% for category, message in messages %}
+                            <div class="p-4 rounded-lg border-l-4 {% if category == 'success' %}bg-green-50 border-green-400 text-green-700{% elif category == 'warning' %}bg-yellow-50 border-yellow-400 text-yellow-700{% elif category == 'error' %}bg-red-50 border-red-400 text-red-700{% else %}bg-blue-50 border-blue-400 text-blue-700{% endif %}">
+                                <div class="flex items-center">
+                                    {% if category == 'success' %}
+                                        <i class="fas fa-check-circle mr-3"></i>
+                                    {% elif category == 'warning' %}
+                                        <i class="fas fa-exclamation-triangle mr-3"></i>
+                                    {% elif category == 'error' %}
+                                        <i class="fas fa-times-circle mr-3"></i>
+                                    {% else %}
+                                        <i class="fas fa-info-circle mr-3"></i>
+                                    {% endif %}
+                                    <span>{{ message }}</span>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
                 {% endif %}
             {% endwith %}
 
@@ -96,5 +172,83 @@
 
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
     {% block scripts %}{% endblock %}
+
+    <script>
+        // Auto-dismiss flash messages
+        document.addEventListener('DOMContentLoaded', function() {
+            // Auto-dismiss flash messages after 5 seconds
+            const flashMessages = document.querySelectorAll('.bg-green-50, .bg-red-50, .bg-yellow-50, .bg-blue-50');
+            flashMessages.forEach(message => {
+                setTimeout(() => {
+                    message.style.transition = 'opacity 0.5s ease-in-out, transform 0.5s ease-in-out';
+                    message.style.opacity = '0';
+                    message.style.transform = 'translateX(100%)';
+                    setTimeout(() => {
+                        if (message.parentElement) {
+                            message.remove();
+                        }
+                    }, 500);
+                }, 5000);
+            });
+
+            // Add active state to current page in sidebar
+            const currentPath = window.location.pathname;
+            const menuItems = document.querySelectorAll('.sidebar a');
+            
+            menuItems.forEach(item => {
+                if (item.getAttribute('href') === currentPath) {
+                    item.classList.add('bg-blue-50', 'text-blue-600', 'border-r-2', 'border-blue-600');
+                }
+            });
+
+            // Mobile menu toggle (for future responsiveness)
+            const sidebar = document.querySelector('.sidebar');
+            let isSidebarOpen = true;
+
+            function toggleSidebar() {
+                isSidebarOpen = !isSidebarOpen;
+                if (isSidebarOpen) {
+                    sidebar.classList.remove('w-16');
+                    sidebar.classList.add('w-64');
+                } else {
+                    sidebar.classList.remove('w-64');
+                    sidebar.classList.add('w-16');
+                }
+            }
+
+            // Add toggle button for mobile (hidden on desktop)
+            const toggleButton = document.createElement('button');
+            toggleButton.innerHTML = '<i class="fas fa-bars"></i>';
+            toggleButton.className = 'lg:hidden fixed top-4 left-4 z-50 bg-blue-600 text-white p-2 rounded-lg shadow-lg';
+            toggleButton.onclick = toggleSidebar;
+            document.body.appendChild(toggleButton);
+        });
+
+        // Search functionality
+        function setupSearch(inputSelector, tableSelector) {
+            const searchInput = document.querySelector(inputSelector);
+            if (searchInput) {
+                searchInput.addEventListener('input', function(e) {
+                    const searchTerm = e.target.value.toLowerCase();
+                    const table = document.querySelector(tableSelector);
+                    if (table) {
+                        const rows = table.querySelectorAll('tbody tr');
+                        rows.forEach(row => {
+                            const text = row.textContent.toLowerCase();
+                            row.style.display = text.includes(searchTerm) ? '' : 'none';
+                        });
+                    }
+                });
+            }
+        }
+
+        // Initialize search on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            setupSearch('input[placeholder*="Search medicines"]', 'table');
+            setupSearch('input[placeholder*="Search sales"]', 'table');
+            setupSearch('input[placeholder*="Search suppliers"]', 'table');
+            setupSearch('input[placeholder*="Search prescriptions"]', 'table');
+        });
+    </script>
 </body>
 </html>

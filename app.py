@@ -271,6 +271,64 @@ def sale_detail(sale_id):
     sale = Sale.query.get_or_404(sale_id)
     return render_template('sales/detail.html', sale=sale)
 
+# Prescription Management
+@app.route('/prescriptions')
+@login_required
+def prescriptions():
+    if current_user.role not in ['admin', 'pharmacist']:
+        flash('Access denied', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    prescriptions_list = Prescription.query.order_by(Prescription.created_at.desc()).all()
+    return render_template('prescriptions/index.html', prescriptions=prescriptions_list)
+
+@app.route('/prescriptions/add', methods=['GET', 'POST'])
+@login_required
+def add_prescription():
+    if current_user.role not in ['admin', 'pharmacist']:
+        flash('Access denied', 'danger')
+        return redirect(url_for('prescriptions'))
+    
+    if request.method == 'POST':
+        try:
+            prescription = Prescription(
+                patient_name=request.form['patient_name'],
+                patient_age=int(request.form.get('patient_age', 0)),
+                patient_gender=request.form.get('patient_gender'),
+                doctor_name=request.form['doctor_name'],
+                doctor_license=request.form.get('doctor_license'),
+                diagnosis=request.form.get('diagnosis'),
+                prescribed_medicines=request.form.get('prescribed_medicines'),
+                date_issued=datetime.strptime(request.form['date_issued'], '%Y-%m-%d').date()
+            )
+            db.session.add(prescription)
+            db.session.commit()
+            flash('Prescription added successfully', 'success')
+            return redirect(url_for('prescriptions'))
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Error adding prescription: {str(e)}', 'danger')
+    
+    return render_template('prescriptions/add.html')
+
+@app.route('/prescriptions/<int:prescription_id>/fulfill', methods=['POST'])
+@login_required
+def fulfill_prescription(prescription_id):
+    if current_user.role not in ['admin', 'pharmacist']:
+        flash('Access denied', 'danger')
+        return redirect(url_for('prescriptions'))
+    
+    prescription = Prescription.query.get_or_404(prescription_id)
+    try:
+        prescription.is_fulfilled = True
+        db.session.commit()
+        flash('Prescription marked as fulfilled', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error fulfilling prescription: {str(e)}', 'danger')
+    
+    return redirect(url_for('prescriptions'))
+
 # Analytics API
 @app.route('/api/analytics/daily-revenue')
 @login_required

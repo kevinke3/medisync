@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+
+{% block title %}Reports - MediSync{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    <h1 class="text-3xl font-bold text-gray-800">Reports</h1>
+    <p class="text-gray-600">Generate and view detailed reports</p>
+</div>
+
+<!-- Report Filters -->
+<div class="bg-white rounded-lg shadow p-6 mb-6">
+    <h3 class="text-lg font-semibold text-gray-800 mb-4">Report Filters</h3>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">Report Type</label>
+            <select id="reportType" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                <option value="sales">Sales Report</option>
+                <option value="stock">Stock Report</option>
+            </select>
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">Start Date</label>
+            <input type="date" id="startDate" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">End Date</label>
+            <input type="date" id="endDate" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+        </div>
+    </div>
+    <div class="mt-4 flex space-x-4">
+        <button onclick="generateReport()" class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition duration-200">
+            Generate Report
+        </button>
+        <button onclick="exportReport()" class="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition duration-200">
+            Export CSV
+        </button>
+    </div>
+</div>
+
+<!-- Report Results -->
+<div class="bg-white rounded-lg shadow overflow-hidden">
+    <div class="p-6 border-b">
+        <h3 class="text-xl font-semibold text-gray-800" id="reportTitle">Sales Report</h3>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200" id="reportTable">
+            <thead class="bg-gray-50">
+                <tr id="reportHeader">
+                    <!-- Header will be populated by JavaScript -->
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200" id="reportBody">
+                <!-- Data will be populated by JavaScript -->
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div id="noData" class="bg-white rounded-lg shadow p-8 text-center hidden">
+    <i class="fas fa-chart-bar text-gray-400 text-6xl mb-4"></i>
+    <h3 class="text-lg font-semibold text-gray-800 mb-2">No Data Available</h3>
+    <p class="text-gray-600">Select filters and generate a report to view data.</p>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function generateReport() {
+    const reportType = document.getElementById('reportType').value;
+    const startDate = document.getElementById('startDate').value;
+    const endDate = document.getElementById('endDate').value;
+    
+    let url = `/api/reports/${reportType}-report`;
+    const params = new URLSearchParams();
+    
+    if (startDate) params.append('start_date', startDate);
+    if (endDate) params.append('end_date', endDate);
+    
+    if (params.toString()) {
+        url += '?' + params.toString();
+    }
+    
+    fetch(url)
+        .then(response => response.json())
+        .then(data => {
+            displayReport(data, reportType);
+        })
+        .catch(error => {
+            console.error('Error generating report:', error);
+        });
+}
+
+function displayReport(data, reportType) {
+    const table = document.getElementById('reportTable');
+    const header = document.getElementById('reportHeader');
+    const body = document.getElementById('reportBody');
+    const noData = document.getElementById('noData');
+    const reportTitle = document.getElementById('reportTitle');
+    
+    if (data.length === 0) {
+        table.classList.add('hidden');
+        noData.classList.remove('hidden');
+        return;
+    }
+    
+    table.classList.remove('hidden');
+    noData.classList.add('hidden');
+    
+    // Set report title
+    reportTitle.textContent = reportType === 'sales' ? 'Sales Report' : 'Stock Report';
+    
+    // Generate headers based on report type
+    let headers = [];
+    if (reportType === 'sales') {
+        headers = ['Invoice', 'Date', 'Customer', 'Items', 'Total Amount', 'Payment Method'];
+    } else {
+        headers = ['Medicine Name', 'Generic Name', 'Batch Number', 'Quantity', 'Min Stock', 'Price', 'Expiry Date', 'Status'];
+    }
+    
+    header.innerHTML = headers.map(header => 
+        `<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">${header}</th>`
+    ).join('');
+    
+    // Generate table rows
+    body.innerHTML = data.map(row => {
+        if (reportType === 'sales') {
+            return `
+                <tr>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${row.invoice_number}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${row.date}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${row.customer}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${row.items}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">$${row.total_amount.toFixed(2)}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${row.payment_method}</td>
+                </tr>
+            `;
+        } else {
+            const statusClass = row.status === 'In Stock' ? 'bg-green-100 text-green-800' : 
+                              row.status === 'Low Stock' ? 'bg-yellow-100 text-yellow-800' : 
+                              'bg-red-100 text-red-800';
+            
+            return `
+                <tr>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${row.name}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${row.generic_name || 'N/A'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${row.batch_number}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${row.quantity}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${row.min_stock_level}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">$${row.price.toFixed(2)}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${row.expiry_date}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusClass}">
+                            ${row.status}
+                        </span>
+                    </td>
+                </tr>
+            `;
+        }
+    }).join('');
+}
+
+function exportReport() {
+    window.location.href = '/api/reports/export-sales';
+}
+
+// Generate initial report on page load
+document.addEventListener('DOMContentLoaded', function() {
+    generateReport();
+});
+</script>
+{% endblock %}

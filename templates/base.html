@@ -68,7 +68,7 @@
                     
                     <!-- Sales -->
                     <li>
-                        <a href="{{ url_for('sales') }}" class="menu-item flex items-center p-2 text-gray-700 hover:bg-blue-50 rounded-lg {% if request.endpoint.startswith('sale') %}bg-blue-50 text-blue-600 border-r-2 border-blue-600{% endif %}">
+                        <a href="{{ url_for('sales') }}" class="menu-item flex items-center p-2 text-gray-700 hover:bg-blue-50 rounded-lg {% if request.endpoint.startswith('sale') and not request.endpoint.startswith('sales_report') %}bg-blue-50 text-blue-600 border-r-2 border-blue-600{% endif %}">
                             <i class="fas fa-shopping-cart w-8 text-center"></i>
                             <span class="ml-4 font-medium">Sales</span>
                         </a>
@@ -97,7 +97,7 @@
                     <!-- Analytics (Admin Only) -->
                     {% if current_user.role == 'admin' %}
                     <li>
-                        <a href="#analytics" class="menu-item flex items-center p-2 text-gray-700 hover:bg-blue-50 rounded-lg">
+                        <a href="{{ url_for('analytics') }}" class="menu-item flex items-center p-2 text-gray-700 hover:bg-blue-50 rounded-lg {% if request.endpoint == 'analytics' %}bg-blue-50 text-blue-600 border-r-2 border-blue-600{% endif %}">
                             <i class="fas fa-chart-bar w-8 text-center"></i>
                             <span class="ml-4 font-medium">Analytics</span>
                         </a>
@@ -107,7 +107,7 @@
                     <!-- Reports -->
                     {% if current_user.role in ['admin', 'pharmacist'] %}
                     <li>
-                        <a href="#reports" class="menu-item flex items-center p-2 text-gray-700 hover:bg-blue-50 rounded-lg">
+                        <a href="{{ url_for('reports') }}" class="menu-item flex items-center p-2 text-gray-700 hover:bg-blue-50 rounded-lg {% if request.endpoint == 'reports' %}bg-blue-50 text-blue-600 border-r-2 border-blue-600{% endif %}">
                             <i class="fas fa-file-alt w-8 text-center"></i>
                             <span class="ml-4 font-medium">Reports</span>
                         </a>
@@ -117,7 +117,7 @@
                     <!-- Settings (Admin Only) -->
                     {% if current_user.role == 'admin' %}
                     <li class="pt-4 mt-4 border-t border-gray-200">
-                        <a href="#settings" class="menu-item flex items-center p-2 text-gray-700 hover:bg-blue-50 rounded-lg">
+                        <a href="{{ url_for('settings') }}" class="menu-item flex items-center p-2 text-gray-700 hover:bg-blue-50 rounded-lg {% if request.endpoint == 'settings' or request.endpoint == 'profile_settings' %}bg-blue-50 text-blue-600 border-r-2 border-blue-600{% endif %}">
                             <i class="fas fa-cog w-8 text-center"></i>
                             <span class="ml-4 font-medium">Settings</span>
                         </a>

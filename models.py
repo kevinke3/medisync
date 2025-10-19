@@ -6,6 +6,8 @@ from datetime import datetime, timedelta
 db = SQLAlchemy()
 
 class User(UserMixin, db.Model):
+    __tablename__ = 'users'
+    
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
@@ -13,12 +15,30 @@ class User(UserMixin, db.Model):
     role = db.Column(db.String(20), nullable=False)  # admin, pharmacist, cashier
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    last_login = db.Column(db.DateTime)
     
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
     
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
+    
+    def get_role_display(self):
+        role_display = {
+            'admin': 'Administrator',
+            'pharmacist': 'Pharmacist', 
+            'cashier': 'Cashier'
+        }
+        return role_display.get(self.role, self.role)
+    
+    def can_access_module(self, module):
+        """Check if user has access to specific module"""
+        access_rules = {
+            'admin': ['dashboard', 'medicines', 'sales', 'prescriptions', 'suppliers', 'analytics', 'reports', 'settings'],
+            'pharmacist': ['dashboard', 'medicines', 'sales', 'prescriptions', 'reports'],
+            'cashier': ['dashboard', 'sales']
+        }
+        return module in access_rules.get(self.role, [])
 
 class Medicine(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -62,7 +82,7 @@ class Sale(db.Model):
     tax_amount = db.Column(db.Float, default=0.0)
     final_amount = db.Column(db.Float, nullable=False)
     payment_method = db.Column(db.String(20))  # cash, card, upi
-    cashier_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    cashier_id = db.Column(db.Integer, db.ForeignKey('users.id'))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     cashier = db.relationship('User', backref=db.backref('sales', lazy=True))
@@ -88,36 +108,3 @@ class Prescription(db.Model):
     date_issued = db.Column(db.Date, nullable=False)
     is_fulfilled = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-class User(UserMixin, db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(80), unique=True, nullable=False)
-    email = db.Column(db.String(120), unique=True, nullable=False)
-    password_hash = db.Column(db.String(128))
-    role = db.Column(db.String(20), nullable=False)  # admin, pharmacist, cashier
-    is_active = db.Column(db.Boolean, default=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    last_login = db.Column(db.DateTime)
-    
-    def set_password(self, password):
-        self.password_hash = generate_password_hash(password)
-    
-    def check_password(self, password):
-        return check_password_hash(self.password_hash, password)
-    
-    def get_role_display(self):
-        role_display = {
-            'admin': 'Administrator',
-            'pharmacist': 'Pharmacist', 
-            'cashier': 'Cashier'
-        }
-        return role_display.get(self.role, self.role)
-    
-    def can_access_module(self, module):
-        """Check if user has access to specific module"""
-        access_rules = {
-            'admin': ['dashboard', 'medicines', 'sales', 'prescriptions', 'suppliers', 'analytics', 'reports', 'settings'],
-            'pharmacist': ['dashboard', 'medicines', 'sales', 'prescriptions', 'reports'],
-            'cashier': ['dashboard', 'sales']
-        }
-        return module in access_rules.get(self.role, [])

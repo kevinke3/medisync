@@ -26,6 +26,9 @@ def load_user(user_id):
 # Authentication Routes
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    if current_user.is_authenticated:
+        return redirect(url_for('dashboard'))
+        
     if request.method == 'POST':
         username = request.form.get('username')
         password = request.form.get('password')
@@ -102,7 +105,7 @@ def add_medicine():
                 price=float(request.form['price']),
                 cost_price=float(request.form.get('cost_price', 0)),
                 expiry_date=datetime.strptime(request.form['expiry_date'], '%Y-%m-%d').date(),
-                supplier_id=request.form.get('supplier_id'),
+                supplier_id=request.form.get('supplier_id') or None,
                 min_stock_level=int(request.form.get('min_stock_level', 10)),
                 is_prescription_required=bool(request.form.get('is_prescription_required'))
             )
@@ -115,6 +118,96 @@ def add_medicine():
             flash(f'Error adding medicine: {str(e)}', 'danger')
     
     return render_template('medicines/add.html', suppliers=suppliers)
+
+@app.route('/medicines/<int:medicine_id>/edit', methods=['GET', 'POST'])
+@login_required
+def edit_medicine(medicine_id):
+    if current_user.role not in ['admin', 'pharmacist']:
+        flash('Access denied', 'danger')
+        return redirect(url_for('medicines'))
+    
+    medicine = Medicine.query.get_or_404(medicine_id)
+    suppliers = Supplier.query.all()
+    
+    if request.method == 'POST':
+        try:
+            medicine.name = request.form['name']
+            medicine.generic_name = request.form.get('generic_name')
+            medicine.category = request.form.get('category')
+            medicine.batch_number = request.form['batch_number']
+            medicine.quantity = int(request.form['quantity'])
+            medicine.price = float(request.form['price'])
+            medicine.cost_price = float(request.form.get('cost_price', 0))
+            medicine.expiry_date = datetime.strptime(request.form['expiry_date'], '%Y-%m-%d').date()
+            medicine.supplier_id = request.form.get('supplier_id') or None
+            medicine.min_stock_level = int(request.form.get('min_stock_level', 10))
+            medicine.is_prescription_required = bool(request.form.get('is_prescription_required'))
+            
+            db.session.commit()
+            flash('Medicine updated successfully', 'success')
+            return redirect(url_for('medicines'))
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Error updating medicine: {str(e)}', 'danger')
+    
+    return render_template('medicines/edit.html', medicine=medicine, suppliers=suppliers)
+
+@app.route('/medicines/<int:medicine_id>/delete', methods=['POST'])
+@login_required
+def delete_medicine(medicine_id):
+    if current_user.role not in ['admin', 'pharmacist']:
+        flash('Access denied', 'danger')
+        return redirect(url_for('medicines'))
+    
+    medicine = Medicine.query.get_or_404(medicine_id)
+    try:
+        db.session.delete(medicine)
+        db.session.commit()
+        flash('Medicine deleted successfully', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error deleting medicine: {str(e)}', 'danger')
+    
+    return redirect(url_for('medicines'))
+
+# Supplier Management
+@app.route('/suppliers')
+@login_required
+def suppliers():
+    if current_user.role != 'admin':
+        flash('Access denied', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    suppliers_list = Supplier.query.all()
+    return render_template('suppliers/index.html', suppliers=suppliers_list)
+
+@app.route('/suppliers/add', methods=['GET', 'POST'])
+@login_required
+def add_supplier():
+    if current_user.role != 'admin':
+        flash('Access denied', 'danger')
+        return redirect(url_for('suppliers'))
+    
+    if request.method == 'POST':
+        try:
+            supplier = Supplier(
+                name=request.form['name'],
+                contact_person=request.form.get('contact_person'),
+                email=request.form.get('email'),
+                phone=request.form.get('phone'),
+                address=request.form.get('address'),
+                tax_id=request.form.get('tax_id'),
+                payment_terms=request.form.get('payment_terms')
+            )
+            db.session.add(supplier)
+            db.session.commit()
+            flash('Supplier added successfully', 'success')
+            return redirect(url_for('suppliers'))
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Error adding supplier: {str(e)}', 'danger')
+    
+    return render_template('suppliers/add.html')
 
 # Sales Management
 @app.route('/sales')
@@ -172,6 +265,12 @@ def new_sale():
     medicines_list = Medicine.query.filter(Medicine.quantity > 0).all()
     return render_template('sales/new.html', medicines=medicines_list)
 
+@app.route('/sales/<int:sale_id>')
+@login_required
+def sale_detail(sale_id):
+    sale = Sale.query.get_or_404(sale_id)
+    return render_template('sales/detail.html', sale=sale)
+
 # Analytics API
 @app.route('/api/analytics/daily-revenue')
 @login_required
@@ -188,7 +287,7 @@ def daily_revenue_analytics():
             db.func.date(Sale.created_at) == date
         ).scalar() or 0
         
-        dates.append(date.strftime('%Y-%m-%d'))
+        dates.append(date.strftime('%m-%d'))
         revenues.append(float(revenue))
     
     return jsonify({'dates': dates, 'revenues': revenues})
@@ -240,15 +339,29 @@ def generate_invoice(sale_id):
     return send_file(buffer, as_attachment=True, download_name=f"invoice_{sale.invoice_number}.pdf", mimetype='application/pdf')
 
 # Initialize database
-@app.before_first_request
 def create_tables():
-    db.create_all()
-    # Create default admin user if not exists
-    if not User.query.filter_by(username='admin').first():
-        admin = User(username='admin', email='admin@medisync.com', role='admin')
-        admin.set_password('admin123')
-        db.session.add(admin)
-        db.session.commit()
+    with app.app_context():
+        db.create_all()
+        # Create default admin user if not exists
+        if not User.query.filter_by(username='admin').first():
+            admin = User(username='admin', email='admin@medisync.com', role='admin')
+            admin.set_password('admin123')
+            db.session.add(admin)
+            
+            # Create sample supplier
+            supplier = Supplier(
+                name="MediSupply Co.",
+                contact_person="John Smith",
+                email="contact@medisupply.com",
+                phone="+1-555-0123",
+                address="123 Healthcare Ave, Medical City"
+            )
+            db.session.add(supplier)
+            db.session.commit()
+            print("Default admin user created: admin/admin123")
+
+# Initialize the database when the app starts
+create_tables()
 
 if __name__ == '__main__':
     app.run(debug=True)

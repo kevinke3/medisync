@@ -396,6 +396,83 @@ def generate_invoice(sale_id):
     buffer.seek(0)
     return send_file(buffer, as_attachment=True, download_name=f"invoice_{sale.invoice_number}.pdf", mimetype='application/pdf')
 
+# Analytics Routes
+@app.route('/analytics')
+@login_required
+def analytics():
+    if not current_user.can_access_module('analytics'):
+        flash('Access denied', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    return render_template('analytics/index.html')
+
+@app.route('/api/analytics/sales-data')
+@login_required
+def sales_analytics_data():
+    if not current_user.can_access_module('analytics'):
+        return jsonify({'error': 'Access denied'}), 403
+    
+    # Sales data for the last 30 days
+    dates = []
+    sales_count = []
+    revenue_data = []
+    
+    for i in range(29, -1, -1):
+        date = datetime.today().date() - timedelta(days=i)
+        daily_sales = Sale.query.filter(db.func.date(Sale.created_at) == date).all()
+        
+        dates.append(date.strftime('%m-%d'))
+        sales_count.append(len(daily_sales))
+        revenue_data.append(float(sum(sale.final_amount for sale in daily_sales)))
+    
+    return jsonify({
+        'dates': dates,
+        'sales_count': sales_count,
+        'revenue': revenue_data
+    })
+
+@app.route('/api/analytics/stock-data')
+@login_required
+def stock_analytics_data():
+    if not current_user.can_access_module('analytics'):
+        return jsonify({'error': 'Access denied'}), 403
+    
+    # Stock analytics
+    total_medicines = Medicine.query.count()
+    low_stock = Medicine.query.filter(Medicine.quantity <= Medicine.min_stock_level).count()
+    out_of_stock = Medicine.query.filter(Medicine.quantity == 0).count()
+    expiring_soon = Medicine.query.filter(
+        Medicine.expiry_date <= datetime.today().date() + timedelta(days=30)
+    ).count()
+    
+    return jsonify({
+        'total_medicines': total_medicines,
+        'low_stock': low_stock,
+        'out_of_stock': out_of_stock,
+        'expiring_soon': expiring_soon
+    })
+
+@app.route('/api/analytics/category-data')
+@login_required
+def category_analytics_data():
+    if not current_user.can_access_module('analytics'):
+        return jsonify({'error': 'Access denied'}), 403
+    
+    # Medicine categories distribution
+    categories = db.session.query(
+        Medicine.category,
+        db.func.count(Medicine.id).label('count')
+    ).filter(Medicine.category.isnot(None)).group_by(Medicine.category).all()
+    
+    category_labels = [cat[0] for cat in categories]
+    category_data = [cat[1] for cat in categories]
+    
+    return jsonify({
+        'labels': category_labels,
+        'data': category_data
+    })
+
+
 # Initialize database
 def create_tables():
     with app.app_context():

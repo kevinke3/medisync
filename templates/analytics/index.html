@@ -1,0 +1,195 @@
+{% extends "base.html" %}
+
+{% block title %}Analytics - MediSync{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    <h1 class="text-3xl font-bold text-gray-800">Analytics Dashboard</h1>
+    <p class="text-gray-600">Comprehensive insights into your pharmacy operations</p>
+</div>
+
+<!-- Statistics Cards -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+    <div class="bg-white rounded-lg shadow p-6 border-l-4 border-blue-500">
+        <div class="flex items-center">
+            <div class="p-3 bg-blue-100 rounded-lg">
+                <i class="fas fa-chart-line text-blue-600 text-xl"></i>
+            </div>
+            <div class="ml-4">
+                <h3 class="text-sm font-medium text-gray-600">Total Revenue (30 days)</h3>
+                <p id="totalRevenue" class="text-2xl font-bold text-gray-800">Loading...</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-lg shadow p-6 border-l-4 border-green-500">
+        <div class="flex items-center">
+            <div class="p-3 bg-green-100 rounded-lg">
+                <i class="fas fa-shopping-cart text-green-600 text-xl"></i>
+            </div>
+            <div class="ml-4">
+                <h3 class="text-sm font-medium text-gray-600">Total Sales (30 days)</h3>
+                <p id="totalSales" class="text-2xl font-bold text-gray-800">Loading...</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-lg shadow p-6 border-l-4 border-red-500">
+        <div class="flex items-center">
+            <div class="p-3 bg-red-100 rounded-lg">
+                <i class="fas fa-exclamation-triangle text-red-600 text-xl"></i>
+            </div>
+            <div class="ml-4">
+                <h3 class="text-sm font-medium text-gray-600">Low Stock Items</h3>
+                <p id="lowStockCount" class="text-2xl font-bold text-gray-800">Loading...</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-lg shadow p-6 border-l-4 border-yellow-500">
+        <div class="flex items-center">
+            <div class="p-3 bg-yellow-100 rounded-lg">
+                <i class="fas fa-calendar-times text-yellow-600 text-xl"></i>
+            </div>
+            <div class="ml-4">
+                <h3 class="text-sm font-medium text-gray-600">Expiring Soon</h3>
+                <p id="expiringCount" class="text-2xl font-bold text-gray-800">Loading...</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+    <!-- Sales Trend Chart -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <h3 class="text-lg font-semibold text-gray-800 mb-4">Sales Trend (Last 30 Days)</h3>
+        <canvas id="salesTrendChart" width="400" height="250"></canvas>
+    </div>
+
+    <!-- Revenue Chart -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <h3 class="text-lg font-semibold text-gray-800 mb-4">Revenue Trend (Last 30 Days)</h3>
+        <canvas id="revenueTrendChart" width="400" height="250"></canvas>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+    <!-- Stock Overview -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <h3 class="text-lg font-semibold text-gray-800 mb-4">Stock Overview</h3>
+        <canvas id="stockChart" width="400" height="250"></canvas>
+    </div>
+
+    <!-- Medicine Categories -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <h3 class="text-lg font-semibold text-gray-800 mb-4">Medicine Categories</h3>
+        <canvas id="categoryChart" width="400" height="250"></canvas>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Load all analytics data
+Promise.all([
+    fetch('/api/analytics/sales-data').then(r => r.json()),
+    fetch('/api/analytics/stock-data').then(r => r.json()),
+    fetch('/api/analytics/category-data').then(r => r.json())
+]).then(([salesData, stockData, categoryData]) => {
+    // Update statistics cards
+    document.getElementById('totalRevenue').textContent = '$' + salesData.revenue.reduce((a, b) => a + b, 0).toFixed(2);
+    document.getElementById('totalSales').textContent = salesData.sales_count.reduce((a, b) => a + b, 0);
+    document.getElementById('lowStockCount').textContent = stockData.low_stock;
+    document.getElementById('expiringCount').textContent = stockData.expiring_soon;
+
+    // Sales Trend Chart
+    const salesCtx = document.getElementById('salesTrendChart').getContext('2d');
+    new Chart(salesCtx, {
+        type: 'line',
+        data: {
+            labels: salesData.dates,
+            datasets: [{
+                label: 'Daily Sales',
+                data: salesData.sales_count,
+                borderColor: '#3b82f6',
+                backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                tension: 0.4,
+                fill: true
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            }
+        }
+    });
+
+    // Revenue Trend Chart
+    const revenueCtx = document.getElementById('revenueTrendChart').getContext('2d');
+    new Chart(revenueCtx, {
+        type: 'line',
+        data: {
+            labels: salesData.dates,
+            datasets: [{
+                label: 'Daily Revenue ($)',
+                data: salesData.revenue,
+                borderColor: '#10b981',
+                backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                tension: 0.4,
+                fill: true
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            }
+        }
+    });
+
+    // Stock Overview Chart
+    const stockCtx = document.getElementById('stockChart').getContext('2d');
+    new Chart(stockCtx, {
+        type: 'doughnut',
+        data: {
+            labels: ['In Stock', 'Low Stock', 'Out of Stock', 'Expiring Soon'],
+            datasets: [{
+                data: [
+                    stockData.total_medicines - stockData.low_stock - stockData.out_of_stock,
+                    stockData.low_stock,
+                    stockData.out_of_stock,
+                    stockData.expiring_soon
+                ],
+                backgroundColor: [
+                    '#10b981',
+                    '#f59e0b',
+                    '#ef4444',
+                    '#8b5cf6'
+                ]
+            }]
+        }
+    });
+
+    // Category Distribution Chart
+    const categoryCtx = document.getElementById('categoryChart').getContext('2d');
+    new Chart(categoryCtx, {
+        type: 'pie',
+        data: {
+            labels: categoryData.labels,
+            datasets: [{
+                data: categoryData.data,
+                backgroundColor: [
+                    '#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6',
+                    '#ec4899', '#06b6d4', '#84cc16', '#f97316', '#6366f1'
+                ]
+            }]
+        }
+    });
+});
+</script>
+{% endblock %}

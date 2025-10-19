@@ -190,6 +190,13 @@ Promise.all([
             }]
         }
     });
+}).catch(error => {
+    console.error('Error loading analytics data:', error);
+    // Show error messages
+    document.getElementById('totalRevenue').textContent = 'Error';
+    document.getElementById('totalSales').textContent = 'Error';
+    document.getElementById('lowStockCount').textContent = 'Error';
+    document.getElementById('expiringCount').textContent = 'Error';
 });
 </script>
 {% endblock %}

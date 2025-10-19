@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MediSync - {% block title %}Chemist Management System{% endblock %}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .sidebar:hover {
+            width: 16rem;
+        }
+        .sidebar {
+            transition: width 0.3s;
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <!-- Navigation -->
+    <nav class="bg-white shadow-lg">
+        <div class="max-w-7xl mx-auto px-4">
+            <div class="flex justify-between items-center h-16">
+                <div class="flex items-center">
+                    <i class="fas fa-prescription-bottle text-blue-600 text-2xl mr-3"></i>
+                    <span class="text-xl font-bold text-blue-800">MediSync</span>
+                </div>
+                
+                <div class="flex items-center space-x-4">
+                    <span class="text-gray-700">Welcome, {{ current_user.username }}</span>
+                    <span class="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">{{ current_user.role|title }}</span>
+                    <a href="{{ url_for('logout') }}" class="text-gray-600 hover:text-blue-600">
+                        <i class="fas fa-sign-out-alt"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="flex">
+        <!-- Sidebar -->
+        <div class="sidebar bg-white w-16 hover:w-64 h-screen shadow-lg overflow-hidden">
+            <div class="p-4">
+                <ul class="space-y-2">
+                    <li>
+                        <a href="{{ url_for('dashboard') }}" class="flex items-center p-2 text-gray-700 hover:bg-blue-50 rounded-lg {% if request.endpoint == 'dashboard' %}bg-blue-50 text-blue-600{% endif %}">
+                            <i class="fas fa-chart-line w-8"></i>
+                            <span class="ml-4">Dashboard</span>
+                        </a>
+                    </li>
+                    
+                    {% if current_user.role in ['admin', 'pharmacist'] %}
+                    <li>
+                        <a href="{{ url_for('medicines') }}" class="flex items-center p-2 text-gray-700 hover:bg-blue-50 rounded-lg {% if request.endpoint.startswith('medicine') %}bg-blue-50 text-blue-600{% endif %}">
+                            <i class="fas fa-pills w-8"></i>
+                            <span class="ml-4">Medicines</span>
+                        </a>
+                    </li>
+                    {% endif %}
+                    
+                    <li>
+                        <a href="{{ url_for('sales') }}" class="flex items-center p-2 text-gray-700 hover:bg-blue-50 rounded-lg {% if request.endpoint.startswith('sale') %}bg-blue-50 text-blue-600{% endif %}">
+                            <i class="fas fa-shopping-cart w-8"></i>
+                            <span class="ml-4">Sales</span>
+                        </a>
+                    </li>
+                    
+                    {% if current_user.role == 'admin' %}
+                    <li>
+                        <a href="{{ url_for('suppliers') }}" class="flex items-center p-2 text-gray-700 hover:bg-blue-50 rounded-lg">
+                            <i class="fas fa-truck w-8"></i>
+                            <span class="ml-4">Suppliers</span>
+                        </a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <main class="flex-1 p-6">
+            <!-- Flash Messages -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="mb-4 p-4 rounded-lg {% if category == 'success' %}bg-green-100 text-green-700{% else %}bg-red-100 text-red-700{% endif %}">
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

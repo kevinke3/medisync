@@ -7,8 +7,9 @@ import json
 import io
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
-from reportlab.lib.utils import ImageReader
 import qrcode
+import csv
+from io import StringIO
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -36,6 +37,9 @@ def login():
         
         if user and user.check_password(password) and user.is_active:
             login_user(user)
+            user.last_login = datetime.utcnow()
+            db.session.commit()
+            
             next_page = request.args.get('next')
             return redirect(next_page or url_for('dashboard'))
         else:
@@ -79,7 +83,7 @@ def dashboard():
 @app.route('/medicines')
 @login_required
 def medicines():
-    if current_user.role not in ['admin', 'pharmacist']:
+    if not current_user.can_access_module('medicines'):
         flash('Access denied', 'danger')
         return redirect(url_for('dashboard'))
     
@@ -89,7 +93,7 @@ def medicines():
 @app.route('/medicines/add', methods=['GET', 'POST'])
 @login_required
 def add_medicine():
-    if current_user.role not in ['admin', 'pharmacist']:
+    if not current_user.can_access_module('medicines'):
         flash('Access denied', 'danger')
         return redirect(url_for('medicines'))
     
@@ -122,7 +126,7 @@ def add_medicine():
 @app.route('/medicines/<int:medicine_id>/edit', methods=['GET', 'POST'])
 @login_required
 def edit_medicine(medicine_id):
-    if current_user.role not in ['admin', 'pharmacist']:
+    if not current_user.can_access_module('medicines'):
         flash('Access denied', 'danger')
         return redirect(url_for('medicines'))
     
@@ -155,7 +159,7 @@ def edit_medicine(medicine_id):
 @app.route('/medicines/<int:medicine_id>/delete', methods=['POST'])
 @login_required
 def delete_medicine(medicine_id):
-    if current_user.role not in ['admin', 'pharmacist']:
+    if not current_user.can_access_module('medicines'):
         flash('Access denied', 'danger')
         return redirect(url_for('medicines'))
     
@@ -174,7 +178,7 @@ def delete_medicine(medicine_id):
 @app.route('/suppliers')
 @login_required
 def suppliers():
-    if current_user.role != 'admin':
+    if not current_user.can_access_module('suppliers'):
         flash('Access denied', 'danger')
         return redirect(url_for('dashboard'))
     
@@ -184,7 +188,7 @@ def suppliers():
 @app.route('/suppliers/add', methods=['GET', 'POST'])
 @login_required
 def add_supplier():
-    if current_user.role != 'admin':
+    if not current_user.can_access_module('suppliers'):
         flash('Access denied', 'danger')
         return redirect(url_for('suppliers'))
     
@@ -213,12 +217,20 @@ def add_supplier():
 @app.route('/sales')
 @login_required
 def sales():
+    if not current_user.can_access_module('sales'):
+        flash('Access denied', 'danger')
+        return redirect(url_for('dashboard'))
+    
     sales_list = Sale.query.order_by(Sale.created_at.desc()).all()
     return render_template('sales/index.html', sales=sales_list)
 
 @app.route('/sales/new', methods=['GET', 'POST'])
 @login_required
 def new_sale():
+    if not current_user.can_access_module('sales'):
+        flash('Access denied', 'danger')
+        return redirect(url_for('sales'))
+    
     if request.method == 'POST':
         try:
             sale_data = request.get_json()
@@ -268,6 +280,10 @@ def new_sale():
 @app.route('/sales/<int:sale_id>')
 @login_required
 def sale_detail(sale_id):
+    if not current_user.can_access_module('sales'):
+        flash('Access denied', 'danger')
+        return redirect(url_for('sales'))
+    
     sale = Sale.query.get_or_404(sale_id)
     return render_template('sales/detail.html', sale=sale)
 
@@ -275,7 +291,7 @@ def sale_detail(sale_id):
 @app.route('/prescriptions')
 @login_required
 def prescriptions():
-    if current_user.role not in ['admin', 'pharmacist']:
+    if not current_user.can_access_module('prescriptions'):
         flash('Access denied', 'danger')
         return redirect(url_for('dashboard'))
     
@@ -285,7 +301,7 @@ def prescriptions():
 @app.route('/prescriptions/add', methods=['GET', 'POST'])
 @login_required
 def add_prescription():
-    if current_user.role not in ['admin', 'pharmacist']:
+    if not current_user.can_access_module('prescriptions'):
         flash('Access denied', 'danger')
         return redirect(url_for('prescriptions'))
     
@@ -314,7 +330,7 @@ def add_prescription():
 @app.route('/prescriptions/<int:prescription_id>/fulfill', methods=['POST'])
 @login_required
 def fulfill_prescription(prescription_id):
-    if current_user.role not in ['admin', 'pharmacist']:
+    if not current_user.can_access_module('prescriptions'):
         flash('Access denied', 'danger')
         return redirect(url_for('prescriptions'))
     
@@ -328,73 +344,6 @@ def fulfill_prescription(prescription_id):
         flash(f'Error fulfilling prescription: {str(e)}', 'danger')
     
     return redirect(url_for('prescriptions'))
-
-# Analytics API
-@app.route('/api/analytics/daily-revenue')
-@login_required
-def daily_revenue_analytics():
-    if current_user.role != 'admin':
-        return jsonify({'error': 'Access denied'}), 403
-    
-    # Last 7 days revenue data
-    dates = []
-    revenues = []
-    for i in range(6, -1, -1):
-        date = datetime.today().date() - timedelta(days=i)
-        revenue = db.session.query(db.func.sum(Sale.final_amount)).filter(
-            db.func.date(Sale.created_at) == date
-        ).scalar() or 0
-        
-        dates.append(date.strftime('%m-%d'))
-        revenues.append(float(revenue))
-    
-    return jsonify({'dates': dates, 'revenues': revenues})
-
-@app.route('/api/analytics/top-medicines')
-@login_required
-def top_medicines_analytics():
-    if current_user.role != 'admin':
-        return jsonify({'error': 'Access denied'}), 403
-    
-    # Top 10 selling medicines
-    top_medicines = db.session.query(
-        Medicine.name,
-        db.func.sum(SaleItem.quantity).label('total_sold')
-    ).join(SaleItem).group_by(Medicine.id).order_by(
-        db.func.sum(SaleItem.quantity).desc()
-    ).limit(10).all()
-    
-    labels = [med[0] for med in top_medicines]
-    data = [int(med[1]) for med in top_medicines]
-    
-    return jsonify({'labels': labels, 'data': data})
-
-# PDF Invoice Generation
-@app.route('/sales/<int:sale_id>/invoice')
-@login_required
-def generate_invoice(sale_id):
-    sale = Sale.query.get_or_404(sale_id)
-    
-    buffer = io.BytesIO()
-    p = canvas.Canvas(buffer, pagesize=letter)
-    
-    # Add invoice content
-    p.drawString(100, 750, f"Invoice: {sale.invoice_number}")
-    p.drawString(100, 730, f"Date: {sale.created_at.strftime('%Y-%m-%d %H:%M')}")
-    p.drawString(100, 710, f"Customer: {sale.customer_name}")
-    
-    y_position = 680
-    for item in sale.items:
-        p.drawString(100, y_position, f"{item.medicine.name} - {item.quantity} x ${item.unit_price}")
-        y_position -= 20
-    
-    p.drawString(100, y_position - 40, f"Total Amount: ${sale.final_amount}")
-    
-    p.showPage()
-    p.save()
-    
-    buffer.seek(0)
-    return send_file(buffer, as_attachment=True, download_name=f"invoice_{sale.invoice_number}.pdf", mimetype='application/pdf')
 
 # Analytics Routes
 @app.route('/analytics')
@@ -545,9 +494,6 @@ def export_sales_report():
         return jsonify({'error': 'Access denied'}), 403
     
     # Generate CSV report
-    import csv
-    from io import StringIO
-    
     sales = Sale.query.order_by(Sale.created_at.desc()).all()
     
     output = StringIO()
@@ -678,6 +624,33 @@ def profile_settings():
             flash(f'Error updating profile: {str(e)}', 'danger')
     
     return render_template('settings/profile.html')
+
+# PDF Invoice Generation
+@app.route('/sales/<int:sale_id>/invoice')
+@login_required
+def generate_invoice(sale_id):
+    sale = Sale.query.get_or_404(sale_id)
+    
+    buffer = io.BytesIO()
+    p = canvas.Canvas(buffer, pagesize=letter)
+    
+    # Add invoice content
+    p.drawString(100, 750, f"Invoice: {sale.invoice_number}")
+    p.drawString(100, 730, f"Date: {sale.created_at.strftime('%Y-%m-%d %H:%M')}")
+    p.drawString(100, 710, f"Customer: {sale.customer_name}")
+    
+    y_position = 680
+    for item in sale.items:
+        p.drawString(100, y_position, f"{item.medicine.name} - {item.quantity} x ${item.unit_price}")
+        y_position -= 20
+    
+    p.drawString(100, y_position - 40, f"Total Amount: ${sale.final_amount}")
+    
+    p.showPage()
+    p.save()
+    
+    buffer.seek(0)
+    return send_file(buffer, as_attachment=True, download_name=f"invoice_{sale.invoice_number}.pdf", mimetype='application/pdf')
 
 # Initialize database
 def create_tables():

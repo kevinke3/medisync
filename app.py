@@ -472,6 +472,105 @@ def category_analytics_data():
         'data': category_data
     })
 
+# Reports Routes
+@app.route('/reports')
+@login_required
+def reports():
+    if not current_user.can_access_module('reports'):
+        flash('Access denied', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    return render_template('reports/index.html')
+
+@app.route('/api/reports/sales-report')
+@login_required
+def sales_report():
+    if not current_user.can_access_module('reports'):
+        return jsonify({'error': 'Access denied'}), 403
+    
+    start_date = request.args.get('start_date')
+    end_date = request.args.get('end_date')
+    
+    query = Sale.query
+    
+    if start_date:
+        query = query.filter(Sale.created_at >= datetime.strptime(start_date, '%Y-%m-%d'))
+    if end_date:
+        query = query.filter(Sale.created_at <= datetime.strptime(end_date + ' 23:59:59', '%Y-%m-%d %H:%M:%S'))
+    
+    sales = query.order_by(Sale.created_at.desc()).all()
+    
+    report_data = []
+    for sale in sales:
+        report_data.append({
+            'invoice_number': sale.invoice_number,
+            'date': sale.created_at.strftime('%Y-%m-%d %H:%M'),
+            'customer': sale.customer_name,
+            'items': len(sale.items),
+            'total_amount': float(sale.final_amount),
+            'payment_method': sale.payment_method
+        })
+    
+    return jsonify(report_data)
+
+@app.route('/api/reports/stock-report')
+@login_required
+def stock_report():
+    if not current_user.can_access_module('reports'):
+        return jsonify({'error': 'Access denied'}), 403
+    
+    medicines = Medicine.query.order_by(Medicine.quantity.asc()).all()
+    
+    report_data = []
+    for medicine in medicines:
+        report_data.append({
+            'name': medicine.name,
+            'generic_name': medicine.generic_name,
+            'batch_number': medicine.batch_number,
+            'quantity': medicine.quantity,
+            'min_stock_level': medicine.min_stock_level,
+            'price': float(medicine.price),
+            'expiry_date': medicine.expiry_date.strftime('%Y-%m-%d'),
+            'status': 'Out of Stock' if medicine.quantity == 0 else 
+                     'Low Stock' if medicine.quantity <= medicine.min_stock_level else 
+                     'In Stock'
+        })
+    
+    return jsonify(report_data)
+
+@app.route('/api/reports/export-sales')
+@login_required
+def export_sales_report():
+    if not current_user.can_access_module('reports'):
+        return jsonify({'error': 'Access denied'}), 403
+    
+    # Generate CSV report
+    import csv
+    from io import StringIO
+    
+    sales = Sale.query.order_by(Sale.created_at.desc()).all()
+    
+    output = StringIO()
+    writer = csv.writer(output)
+    writer.writerow(['Invoice', 'Date', 'Customer', 'Items', 'Total Amount', 'Payment Method'])
+    
+    for sale in sales:
+        writer.writerow([
+            sale.invoice_number,
+            sale.created_at.strftime('%Y-%m-%d %H:%M'),
+            sale.customer_name,
+            len(sale.items),
+            sale.final_amount,
+            sale.payment_method
+        ])
+    
+    output.seek(0)
+    return send_file(
+        StringIO(output.getvalue()),
+        mimetype='text/csv',
+        as_attachment=True,
+        download_name=f'sales_report_{datetime.now().strftime("%Y%m%d")}.csv'
+    )
 
 # Initialize database
 def create_tables():

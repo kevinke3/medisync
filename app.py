@@ -572,6 +572,113 @@ def export_sales_report():
         download_name=f'sales_report_{datetime.now().strftime("%Y%m%d")}.csv'
     )
 
+# Settings and User Management Routes
+@app.route('/settings')
+@login_required
+def settings():
+    if not current_user.can_access_module('settings'):
+        flash('Access denied', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    users = User.query.all()
+    return render_template('settings/index.html', users=users)
+
+@app.route('/settings/users/add', methods=['POST'])
+@login_required
+def add_user():
+    if current_user.role != 'admin':
+        flash('Access denied', 'danger')
+        return redirect(url_for('settings'))
+    
+    try:
+        username = request.form['username']
+        email = request.form['email']
+        password = request.form['password']
+        role = request.form['role']
+        
+        if User.query.filter_by(username=username).first():
+            flash('Username already exists', 'danger')
+            return redirect(url_for('settings'))
+        
+        if User.query.filter_by(email=email).first():
+            flash('Email already exists', 'danger')
+            return redirect(url_for('settings'))
+        
+        user = User(username=username, email=email, role=role)
+        user.set_password(password)
+        
+        db.session.add(user)
+        db.session.commit()
+        flash('User created successfully', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error creating user: {str(e)}', 'danger')
+    
+    return redirect(url_for('settings'))
+
+@app.route('/settings/users/<int:user_id>/toggle', methods=['POST'])
+@login_required
+def toggle_user(user_id):
+    if current_user.role != 'admin':
+        flash('Access denied', 'danger')
+        return redirect(url_for('settings'))
+    
+    if user_id == current_user.id:
+        flash('Cannot deactivate your own account', 'warning')
+        return redirect(url_for('settings'))
+    
+    user = User.query.get_or_404(user_id)
+    try:
+        user.is_active = not user.is_active
+        db.session.commit()
+        
+        status = 'activated' if user.is_active else 'deactivated'
+        flash(f'User {status} successfully', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error updating user: {str(e)}', 'danger')
+    
+    return redirect(url_for('settings'))
+
+@app.route('/settings/users/<int:user_id>/delete', methods=['POST'])
+@login_required
+def delete_user(user_id):
+    if current_user.role != 'admin':
+        flash('Access denied', 'danger')
+        return redirect(url_for('settings'))
+    
+    if user_id == current_user.id:
+        flash('Cannot delete your own account', 'warning')
+        return redirect(url_for('settings'))
+    
+    user = User.query.get_or_404(user_id)
+    try:
+        db.session.delete(user)
+        db.session.commit()
+        flash('User deleted successfully', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error deleting user: {str(e)}', 'danger')
+    
+    return redirect(url_for('settings'))
+
+@app.route('/settings/profile', methods=['GET', 'POST'])
+@login_required
+def profile_settings():
+    if request.method == 'POST':
+        try:
+            current_user.email = request.form['email']
+            if request.form.get('password'):
+                current_user.set_password(request.form['password'])
+            
+            db.session.commit()
+            flash('Profile updated successfully', 'success')
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Error updating profile: {str(e)}', 'danger')
+    
+    return render_template('settings/profile.html')
+
 # Initialize database
 def create_tables():
     with app.app_context():
